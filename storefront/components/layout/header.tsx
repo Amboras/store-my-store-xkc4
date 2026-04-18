@@ -81,9 +81,13 @@ export default function Header() {
             </button>
 
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2">
-              <span className="font-heading text-2xl font-semibold tracking-tight">
-                Store
+            <Link href="/" className="flex items-center gap-1.5" aria-label="Lumé — Home">
+              <span className="relative inline-flex h-2.5 w-2.5 items-center justify-center">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-ember opacity-70 blur-[2px] animate-flicker" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-ember" />
+              </span>
+              <span className="font-heading text-2xl font-semibold tracking-tight italic">
+                Lumé
               </span>
             </Link>
 

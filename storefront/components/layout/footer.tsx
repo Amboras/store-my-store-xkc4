@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { Flame } from 'lucide-react'
 import { clearConsent } from '@/lib/cookie-consent'
 import { usePolicies } from '@/hooks/use-policies'
 
@@ -46,13 +47,15 @@ export default function Footer() {
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div className="lg:col-span-1">
-            <Link href="/" className="inline-block">
-              <span className="font-heading text-2xl font-semibold">
-                Store
+            <Link href="/" className="inline-flex items-center gap-1.5">
+              <Flame className="h-5 w-5 text-ember" strokeWidth={1.5} />
+              <span className="font-heading text-2xl font-semibold italic tracking-tight">
+                Lumé
               </span>
             </Link>
             <p className="mt-4 text-sm text-muted-foreground leading-relaxed max-w-xs">
-              Curated products crafted with care. Quality you can feel, design you can see.
+              Small-batch soy candles for slow mornings, late dinners and long
+              baths. Hand-poured in Kraków.
             </p>
           </div>
 
@@ -102,7 +105,7 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="mt-12 pt-8 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-muted-foreground">
-            &copy; {new Date().getFullYear()} Store. All rights reserved.
+            &copy; {new Date().getFullYear()} Lumé. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
             <button

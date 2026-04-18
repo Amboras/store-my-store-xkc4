@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from 'react'
 import { useCart } from '@/hooks/use-cart'
-import { Minus, Plus, Check, Loader2 } from 'lucide-react'
+import { Minus, Plus, Check, Loader2, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import ProductPrice, { type VariantExtension } from './product-price'
+import { formatPrice } from '@/lib/utils/format-price'
 import { trackAddToCart } from '@/lib/analytics'
 import { trackMetaEvent, toMetaCurrencyValue } from '@/lib/meta-pixel'
 import type { Product } from '@/types'
@@ -22,6 +23,7 @@ interface VariantOption {
 
 interface ProductVariantWithPrice {
   id: string
+  title?: string
   options?: VariantOption[]
   calculated_price?: {
     calculated_amount?: number
@@ -41,25 +43,25 @@ interface ProductOptionWithValues {
   values?: (string | ProductOptionValue)[]
 }
 
-// Helper: extract price amount from calculated_price object
 function getVariantPriceAmount(variant: ProductVariantWithPrice | undefined): number | null {
   const cp = variant?.calculated_price
   if (!cp) return null
   return typeof cp === 'number' ? cp : cp.calculated_amount ?? null
 }
 
+// Is the given option a "bundle/pack"-like option that we should render as bundle cards?
+function isPackOption(title: string): boolean {
+  const t = title.toLowerCase()
+  return t === 'pack' || t === 'bundle' || t === 'quantity pack' || t === 'pack size'
+}
+
 export default function ProductActions({ product, variantExtensions }: ProductActionsProps) {
-  // Medusa Admin API returns variant.options as VariantOption[] (the `options`
-  // relation expanded), but the SDK's generic ProductVariant type declares it
-  // as Record<string, string>. Cast here so the rest of the component can use
-  // the actual runtime shape.
   const variants = useMemo(
     () => (product.variants || []) as unknown as ProductVariantWithPrice[],
     [product.variants],
   )
   const options = useMemo(() => product.options || [], [product.options])
 
-  // Track selected value per option: { "opt_xxx": "S", "opt_yyy": "Black" }
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
     const defaults: Record<string, string> = {}
     const firstVariant = variants[0]
@@ -78,10 +80,8 @@ export default function ProductActions({ product, variantExtensions }: ProductAc
   const [justAdded, setJustAdded] = useState(false)
   const { addItem, isAddingItem } = useCart()
 
-  // Find variant matching all selected options
   const selectedVariant = useMemo(() => {
     if (variants.length <= 1) return variants[0]
-
     return variants.find((v: ProductVariantWithPrice) => {
       if (!v.options) return false
       return v.options.every((opt: VariantOption) => {
@@ -92,7 +92,6 @@ export default function ProductActions({ product, variantExtensions }: ProductAc
     }) || variants[0]
   }, [variants, selectedOptions])
 
-  // Extension data for selected variant (compare-at + inventory)
   const ext = selectedVariant?.id ? variantExtensions?.[selectedVariant.id] : null
   const currentPriceCents = getVariantPriceAmount(selectedVariant)
   const cp = selectedVariant?.calculated_price
@@ -101,7 +100,7 @@ export default function ProductActions({ product, variantExtensions }: ProductAc
   const allowBackorder = ext?.allow_backorder ?? false
   const inventoryQuantity = ext?.inventory_quantity
   const isOutOfStock = !allowBackorder && inventoryQuantity != null && inventoryQuantity <= 0
-  const isLowStock = inventoryQuantity != null && inventoryQuantity > 0 && inventoryQuantity < 10
+  const isLowStock = inventoryQuantity != null && inventoryQuantity > 0 && inventoryQuantity < 12
 
   const handleOptionChange = (optionId: string, value: string) => {
     setSelectedOptions((prev) => ({ ...prev, [optionId]: value }))
@@ -110,7 +109,6 @@ export default function ProductActions({ product, variantExtensions }: ProductAc
 
   const handleAddToCart = () => {
     if (!selectedVariant?.id || isOutOfStock) return
-
     addItem(
       { variantId: selectedVariant.id, quantity },
       {
@@ -137,7 +135,6 @@ export default function ProductActions({ product, variantExtensions }: ProductAc
     )
   }
 
-  // Should we show variant selectors?
   const hasMultipleVariants = variants.length > 1
 
   return (
@@ -153,12 +150,10 @@ export default function ProductActions({ product, variantExtensions }: ProductAc
 
       {/* Option Selectors */}
       {hasMultipleVariants && options.map((option: ProductOptionWithValues) => {
-        // option.values is an array of { id, value, ... } objects
         const values = (option.values || []).map((v: string | ProductOptionValue) =>
           typeof v === 'string' ? v : v.value
         ).filter(Boolean) as string[]
 
-        // Skip if only "One Size" or "Default"
         if (values.length <= 1 && (values[0] === 'One Size' || values[0] === 'Default')) {
           return null
         }
@@ -166,6 +161,134 @@ export default function ProductActions({ product, variantExtensions }: ProductAc
         const optionId = option.id
         const selectedValue = selectedOptions[optionId]
 
+        // === PACK / BUNDLE option: render as bundle cards ===
+        if (isPackOption(option.title)) {
+          return (
+            <div key={optionId}>
+              <div className="flex items-baseline justify-between mb-3">
+                <h3 className="text-xs uppercase tracking-[0.18em] font-semibold">
+                  Choose your pack
+                </h3>
+                <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                  Most pick the Trio
+                </span>
+              </div>
+
+              <div className="space-y-2.5">
+                {values.map((value, idx) => {
+                  const isSelected = selectedValue === value
+
+                  // Find the matching variant for this pack value
+                  const matchVariant = variants.find((v) =>
+                    v.options?.some(
+                      (o) =>
+                        (o.option_id === optionId || o.option?.id === optionId) &&
+                        o.value === value,
+                    ),
+                  )
+                  const matchExt = matchVariant?.id ? variantExtensions?.[matchVariant.id] : null
+                  const matchPrice = getVariantPriceAmount(matchVariant)
+                  const matchCurrency =
+                    (matchVariant?.calculated_price &&
+                    typeof matchVariant.calculated_price !== 'number'
+                      ? matchVariant.calculated_price.currency_code
+                      : undefined) || currency
+                  const matchCompare = matchExt?.compare_at_price
+
+                  // Check availability
+                  const isAvailable = !!matchVariant && (
+                    (matchExt?.allow_backorder ?? false) ||
+                    matchExt?.inventory_quantity == null ||
+                    matchExt.inventory_quantity > 0
+                  )
+
+                  // Compute savings
+                  const savings =
+                    matchPrice != null && matchCompare != null && matchCompare > matchPrice
+                      ? matchCompare - matchPrice
+                      : 0
+                  const savingsPct =
+                    matchCompare && matchCompare > 0 && savings > 0
+                      ? Math.round((savings / matchCompare) * 100)
+                      : 0
+
+                  // Label parts (split on em-dash if present)
+                  const [packLabel, ...rest] = value.split('—').map((s) => s.trim())
+                  const packTag = rest.join(' — ')
+
+                  // Is this the "best value" card? Highlight the trio / largest
+                  const isBestValue = idx === values.length - 1 && values.length >= 2
+
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => handleOptionChange(optionId, value)}
+                      disabled={!isAvailable}
+                      className={`relative w-full text-left border rounded-sm transition-all p-4 sm:p-5 ${
+                        isSelected
+                          ? 'border-foreground bg-foreground/[0.03] ring-1 ring-foreground'
+                          : isAvailable
+                          ? 'border-border hover:border-foreground/50'
+                          : 'border-border text-muted-foreground/50 cursor-not-allowed'
+                      }`}
+                    >
+                      {isBestValue && (
+                        <span className="absolute -top-2 left-4 inline-flex items-center gap-1 bg-ember text-background px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] rounded-sm">
+                          <Sparkles className="h-3 w-3" strokeWidth={2} />
+                          Best Value
+                        </span>
+                      )}
+
+                      <div className="flex items-start gap-3">
+                        {/* Radio indicator */}
+                        <span
+                          className={`mt-1 h-4 w-4 flex-shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
+                            isSelected ? 'border-foreground' : 'border-border'
+                          }`}
+                        >
+                          {isSelected && (
+                            <span className="h-2 w-2 rounded-full bg-foreground" />
+                          )}
+                        </span>
+
+                        {/* Label + tag */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <div>
+                              <p className="font-medium">{packLabel}</p>
+                              {packTag && (
+                                <p className="text-xs text-ember mt-0.5 font-medium">{packTag}</p>
+                              )}
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              {matchPrice != null && (
+                                <p className="font-semibold tabular-nums">
+                                  {formatPrice(matchPrice, matchCurrency)}
+                                </p>
+                              )}
+                              {matchCompare && matchCompare > (matchPrice ?? 0) && (
+                                <p className="text-xs text-muted-foreground line-through tabular-nums">
+                                  {formatPrice(matchCompare, matchCurrency)}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {savingsPct > 0 && (
+                            <p className="text-[11px] text-muted-foreground mt-1">
+                              You save {formatPrice(savings, matchCurrency)} ({savingsPct}% off)
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        }
+
+        // Default: pill buttons
         return (
           <div key={optionId}>
             <h3 className="text-xs uppercase tracking-widest font-semibold mb-3">
@@ -179,9 +302,6 @@ export default function ProductActions({ product, variantExtensions }: ProductAc
             <div className="flex flex-wrap gap-2">
               {values.map((value) => {
                 const isSelected = selectedValue === value
-
-                // Check availability: is there a variant with this option value that's in stock
-                // (or that allows backorders)?
                 const isAvailable = variants.some((v: ProductVariantWithPrice) => {
                   const hasValue = v.options?.some(
                     (o: VariantOption) => (o.option_id === optionId || o.option?.id === optionId) && o.value === value
@@ -216,10 +336,17 @@ export default function ProductActions({ product, variantExtensions }: ProductAc
       })}
 
       {/* Low Stock Warning */}
-      {isLowStock && (
-        <p className="text-sm text-accent font-medium">
-          Only {inventoryQuantity} left in stock
-        </p>
+      {isLowStock && inventoryQuantity != null && (
+        <div className="flex items-center gap-3 rounded-sm border border-ember/30 bg-ember/5 px-4 py-3">
+          <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-ember opacity-60 animate-ping" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-ember" />
+          </span>
+          <p className="text-xs sm:text-sm">
+            <span className="font-semibold">Only {inventoryQuantity} left</span>
+            <span className="text-muted-foreground"> in this batch — refilled in ~2 weeks.</span>
+          </p>
+        </div>
       )}
 
       {/* Quantity + Add to Cart */}
@@ -247,12 +374,12 @@ export default function ProductActions({ product, variantExtensions }: ProductAc
         <button
           onClick={handleAddToCart}
           disabled={isOutOfStock || isAddingItem}
-          className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-semibold uppercase tracking-wide transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-semibold uppercase tracking-[0.12em] transition-all ${
             isOutOfStock
               ? 'bg-muted text-muted-foreground cursor-not-allowed'
               : justAdded
               ? 'bg-green-700 text-white'
-              : 'bg-foreground text-background hover:opacity-90'
+              : 'bg-foreground text-background hover:bg-ember'
           }`}
         >
           {isAddingItem ? (

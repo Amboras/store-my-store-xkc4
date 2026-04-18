@@ -4,35 +4,38 @@
 
 @layer base {
   :root {
-    --background: 40 20% 98%;
-    --foreground: 0 0% 10%;
-    --muted: 40 10% 94%;
-    --muted-foreground: 0 0% 45%;
-    --accent: 35 40% 50%;
-    --accent-foreground: 0 0% 100%;
-    --border: 40 10% 88%;
-    --ring: 35 40% 50%;
-    --primary: 0 0% 10%;
-    --primary-foreground: 0 0% 98%;
+    /* Lumé palette — warm cream, charcoal ink, ember amber */
+    --background: 36 33% 97%;
+    --foreground: 24 18% 12%;
+    --muted: 34 22% 92%;
+    --muted-foreground: 24 10% 40%;
+    --accent: 26 55% 48%;
+    --accent-foreground: 36 33% 97%;
+    --border: 32 18% 86%;
+    --ring: 26 55% 48%;
+    --primary: 24 18% 12%;
+    --primary-foreground: 36 33% 97%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
 
-    /* Brand colors (dynamically injected from Store.metadata.brand) */
-    /* Access in CSS: var(--brand-primary), var(--brand-secondary) */
-    /* Managed by BrandStyleInjector component */
+    /* Brand tokens for Lumé */
+    --ember: 20 72% 48%;
+    --ink: 24 18% 12%;
+    --cream: 36 33% 97%;
+    --sand: 34 22% 92%;
   }
 
   .dark {
-    --background: 0 0% 6%;
-    --foreground: 40 20% 94%;
-    --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 55%;
-    --accent: 35 45% 55%;
-    --accent-foreground: 0 0% 100%;
-    --border: 0 0% 16%;
-    --ring: 35 45% 55%;
-    --primary: 40 20% 94%;
-    --primary-foreground: 0 0% 6%;
+    --background: 24 15% 7%;
+    --foreground: 36 20% 94%;
+    --muted: 24 10% 14%;
+    --muted-foreground: 30 8% 60%;
+    --accent: 26 60% 58%;
+    --accent-foreground: 24 15% 7%;
+    --border: 24 10% 18%;
+    --ring: 26 60% 58%;
+    --primary: 36 20% 94%;
+    --primary-foreground: 24 15% 7%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
   }
@@ -72,17 +75,17 @@
     @apply w-full;
   }
 
-  /* Brand color utilities - uses colors from Store.metadata.brand */
+  /* Brand color utilities */
   .btn-brand-primary {
-    background-color: var(--brand-primary, hsl(var(--primary)));
-    color: white;
+    background-color: var(--brand-primary, hsl(var(--foreground)));
+    color: hsl(var(--background));
   }
   .btn-brand-primary:hover {
     opacity: 0.9;
   }
 
   .text-brand-primary {
-    color: var(--brand-primary, hsl(var(--primary)));
+    color: var(--brand-primary, hsl(var(--foreground)));
   }
 
   .text-brand-secondary {
@@ -90,15 +93,38 @@
   }
 
   .border-brand-primary {
-    border-color: var(--brand-primary, hsl(var(--border)));
+    border-color: var(--brand-primary, hsl(var(--foreground)));
   }
 
   .bg-brand-primary {
-    background-color: var(--brand-primary, hsl(var(--primary)));
+    background-color: var(--brand-primary, hsl(var(--foreground)));
   }
 
   .bg-brand-secondary {
     background-color: var(--brand-secondary, hsl(var(--accent)));
+  }
+
+  .text-ember {
+    color: hsl(var(--ember));
+  }
+  .bg-ember {
+    background-color: hsl(var(--ember));
+  }
+  .bg-cream {
+    background-color: hsl(var(--cream));
+  }
+  .bg-sand {
+    background-color: hsl(var(--sand));
+  }
+  .bg-ink {
+    background-color: hsl(var(--ink));
+  }
+
+  /* Subtle grain texture for hero backdrops */
+  .bg-grain {
+    background-image:
+      radial-gradient(circle at 30% 20%, hsla(30, 40%, 80%, 0.35), transparent 55%),
+      radial-gradient(circle at 80% 70%, hsla(20, 50%, 70%, 0.25), transparent 60%);
   }
 }
 
@@ -109,12 +135,31 @@ html {
 
 /* Selection color */
 ::selection {
-  @apply bg-accent/20 text-foreground;
+  background-color: hsl(var(--accent) / 0.25);
+  color: hsl(var(--foreground));
 }
 
 /* Focus styles */
 :focus-visible {
   @apply outline-2 outline-offset-2 outline-ring;
+}
+
+/* Flicker animation for ember accents */
+@keyframes flicker {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.03); }
+}
+.animate-flicker {
+  animation: flicker 2.4s ease-in-out infinite;
+}
+
+/* Marquee for scrolling text strip */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 32s linear infinite;
 }
 
 /* Cookie consent animation */
